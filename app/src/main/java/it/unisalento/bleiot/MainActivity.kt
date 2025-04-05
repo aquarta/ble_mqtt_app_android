@@ -209,7 +209,7 @@ class MainActivity : ComponentActivity() {
             if (ActivityCompat.checkSelfPermission(
                     this,
                     Manifest.permission.BLUETOOTH_SCAN
-                ) == PackageManager.PERMISSION_GRANTED
+                ) == PackageManager.PERMISSION_GRANTED || Build.VERSION.SDK_INT < Build.VERSION_CODES.S
             ) {
                 scanning = false
                 bluetoothLeScanner?.stopScan(scanCallback)
@@ -364,8 +364,8 @@ class MainActivity : ComponentActivity() {
             if (characteristic.uuid == CHARACTERISTIC_UUID) {
 
                 // Parse the data based on your specific device's format
-                val data = parseHeartRateData(value) // Example parser
-                updateData("Heart Rate: $data bpm")
+                val data = parseTemperatureDeta(value) // Example parser
+                updateData("Temperature : $data C")
             }
         }
 
@@ -381,23 +381,20 @@ class MainActivity : ComponentActivity() {
                 // For older Android versions
                 val value = characteristic.value
                 if (characteristic.uuid == CHARACTERISTIC_UUID) {
-                    val data = parseHeartRateData(value)
-                    updateData("Heart Rate: $data bpm")
+                    val data = parseTemperatureDeta(value)
+                    updateData("Temperature: $data bpm")
                 }
             }
         }
     }
 
-    // Example parser for Heart Rate data (adjust according to your device)
-    private fun parseHeartRateData(data: ByteArray): Int {
-        // Check if the Heart Rate value format is uint8 or uint16
-        return if (data[0].toInt() and 0x01 == 0) {
-            // Heart Rate is in the second byte
-            data[1].toInt() and 0xFF
-        } else {
-            // Heart Rate is in the second and third bytes
-            (data[1].toInt() and 0xFF) + ((data[2].toInt() and 0xFF) shl 8)
+    // Example parser for Temperature data (adjust according to your device)
+    private fun parseTemperatureDeta(data: ByteArray): Double {
+
+        val tempValue = data.sliceArray(6 until data.size).foldIndexed(0) { index, acc, byte ->
+            acc or ((byte.toInt() and 0xFF) shl (8 * index))
         }
+        return (tempValue/10).toDouble()
     }
 
     // Update UI state helpers
