@@ -144,7 +144,10 @@ class MainActivity : ComponentActivity() {
 
         // For older Android versions
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
+            permissionsToRequest.add(Manifest.permission.BLUETOOTH)
+            //permissionsToRequest.add(Manifest.permission.BLUETOOTH_CONNECT)
             permissionsToRequest.add(Manifest.permission.ACCESS_FINE_LOCATION)
+            permissionsToRequest.add(Manifest.permission.ACCESS_COARSE_LOCATION)
         }
 
         // Request permissions if needed
@@ -258,7 +261,9 @@ class MainActivity : ComponentActivity() {
                 Manifest.permission.BLUETOOTH_CONNECT
             ) != PackageManager.PERMISSION_GRANTED
         ) {
-            return
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                return
+            }
         }
 
         updateStatus("Connecting to ${device.name ?: "Unknown Device"}...")
@@ -281,7 +286,9 @@ class MainActivity : ComponentActivity() {
                             Manifest.permission.BLUETOOTH_CONNECT
                         ) != PackageManager.PERMISSION_GRANTED
                     ) {
-                        return
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                            return
+                        }
                     }
 
                     // Discover services
@@ -316,7 +323,9 @@ class MainActivity : ComponentActivity() {
                                 Manifest.permission.BLUETOOTH_CONNECT
                             ) != PackageManager.PERMISSION_GRANTED
                         ) {
-                            return
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                                return
+                            }
                         }
 
                         // Enable notifications
