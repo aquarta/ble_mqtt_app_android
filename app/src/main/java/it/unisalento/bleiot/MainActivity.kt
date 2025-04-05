@@ -56,9 +56,13 @@ class MainActivity : ComponentActivity() {
 
     private var gattClient: BluetoothGatt? = null
 
+
+    private val TARGET_DEVICE_NAME = "BlueNRGLP"
     // Example UUIDs - replace with your device's actual UUIDs
-    private val SERVICE_UUID = UUID.fromString("0000180d-0000-1000-8000-00805f9b34fb") // Heart Rate Service
-    private val CHARACTERISTIC_UUID = UUID.fromString("00140000-0001-11e1-ac36-0002a5d5c51b") // Heart Rate Measurement
+    //private val SERVICE_UUID = UUID.fromString("0000180d-0000-1000-8000-00805f9b34fb") // Heart Rate Service
+    private val SERVICE_UUID = UUID.fromString("00000000-0001-11e1-9ab4-0002a5d5c51b") // MSSensorDemo Service
+
+    private val CHARACTERISTIC_UUID = UUID.fromString("00140000-0001-11e1-ac36-0002a5d5c51b") //  MSSensorDemo Characteristic
 
     // State for UI
     private val _uiState = MutableStateFlow(BleUiState())
@@ -231,11 +235,12 @@ class MainActivity : ComponentActivity() {
             val device = result.device
             val deviceName = device.name ?: "Unknown Device"
 
-            Log.d(TAG, "Found device: $deviceName")
+            Log.i(TAG, "Found device: $deviceName")
 
             // Connect to the first device found (for demonstration)
             // In a real app, you might want to show a list of devices
-            if (deviceName != "Unknown Device") {
+
+            if (deviceName == TARGET_DEVICE_NAME) {
                 stopScan()
                 connectToDevice(device)
             }
@@ -317,13 +322,12 @@ class MainActivity : ComponentActivity() {
                         // Enable notifications
                         gatt.setCharacteristicNotification(characteristic, true)
 
-                        // For some characteristics, we need to enable the Client Characteristic Configuration Descriptor (CCCD)
-                        val descriptor = characteristic.getDescriptor(
-                            UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
-                        )
 
+//                        // For some characteristics, we need to enable the Client Characteristic Configuration Descriptor (CCCD)
+                        val desc_uuid = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
+                        val descriptor = characteristic.getDescriptor(desc_uuid)
                         if (descriptor != null) {
-                            descriptor.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
+                            descriptor.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE)
                             gatt.writeDescriptor(descriptor)
                             updateStatus("Notifications enabled")
                         }
@@ -346,8 +350,10 @@ class MainActivity : ComponentActivity() {
             characteristic: BluetoothGattCharacteristic,
             value: ByteArray
         ) {
+            Log.w(TAG, "onServicesDiscovered received: ${characteristic.uuid.toString()} - $value")
             // This is called when notifications are received
             if (characteristic.uuid == CHARACTERISTIC_UUID) {
+
                 // Parse the data based on your specific device's format
                 val data = parseHeartRateData(value) // Example parser
                 updateData("Heart Rate: $data bpm")
