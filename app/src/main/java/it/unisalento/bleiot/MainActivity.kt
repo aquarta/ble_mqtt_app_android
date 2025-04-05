@@ -57,7 +57,7 @@ class MainActivity : ComponentActivity() {
     private var gattClient: BluetoothGatt? = null
 
 
-    private val TARGET_DEVICE_NAME = "BlueNRGLP"
+    var target_device_name = "" // Initialize as empty
     // Example UUIDs - replace with your device's actual UUIDs
     //private val SERVICE_UUID = UUID.fromString("0000180d-0000-1000-8000-00805f9b34fb") // Heart Rate Service
     private val SERVICE_UUID = UUID.fromString("00000000-0001-11e1-9ab4-0002a5d5c51b") // MSSensorDemo Service
@@ -104,6 +104,7 @@ class MainActivity : ComponentActivity() {
                         stopScan()
                     }
                 }
+
             )
         }
     }
@@ -243,7 +244,7 @@ class MainActivity : ComponentActivity() {
             // Connect to the first device found (for demonstration)
             // In a real app, you might want to show a list of devices
 
-            if (deviceName == TARGET_DEVICE_NAME) {
+            if (deviceName == target_device_name) {
                 stopScan()
                 connectToDevice(device)
             }
@@ -434,8 +435,9 @@ fun BleNotificationApp(
     uiState: StateFlow<BleUiState>,
     onScanButtonClick: () -> Unit
 ) {
+    var deviceName by remember { mutableStateOf("") }
     val state by uiState.collectAsState()
-
+    val context = LocalContext.current
     MaterialTheme {
         Surface(
             modifier = Modifier.fillMaxSize(),
@@ -453,6 +455,19 @@ fun BleNotificationApp(
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(vertical = 32.dp)
                 )
+
+                OutlinedTextField(
+                    value = deviceName,
+                    onValueChange = { deviceName = it },
+                    label = { Text("Device Name") },
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+                SideEffect {
+
+                    if (context is MainActivity) { context.target_device_name = deviceName
+                    }
+                }
+
 
                 Button(
                     onClick = onScanButtonClick,
