@@ -44,6 +44,9 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import java.util.*
 
+import org.eclipse.paho.client.mqttv3.*
+import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence
+
 class MainActivity : ComponentActivity() {
 
     private val TAG = "BleGattNotificationApp"
@@ -63,6 +66,15 @@ class MainActivity : ComponentActivity() {
     private val SERVICE_UUID = UUID.fromString("00000000-0001-11e1-9ab4-0002a5d5c51b") // MSSensorDemo Service
 
     private val CHARACTERISTIC_UUID = UUID.fromString("00140000-0001-11e1-ac36-0002a5d5c51b") //  MSSensorDemo Characteristic
+
+
+    // MQTT Client properties
+    private var mqttClient: MqttClient? = null
+    private val MQTT_SERVER_URI = "tcp://localhost:1883"
+    private val MQTT_CLIENT_ID = "AndroidBleClient"
+    private val MQTT_TOPIC = "ble/temperature"
+    private val MQTT_USERNAME = "your_username" // Optional
+    private val MQTT_PASSWORD = "your_password" // Optional
 
     // State for UI
     private val _uiState = MutableStateFlow(BleUiState())
@@ -395,7 +407,59 @@ class MainActivity : ComponentActivity() {
         val tempValue = data.sliceArray(6 until data.size).foldIndexed(0) { index, acc, byte ->
             acc or ((byte.toInt() and 0xFF) shl (8 * index))
         }
-        return (tempValue/10).toDouble()
+
+        val temperature = (tempValue/10).toDouble()
+        // Publish temperature to MQTT
+        publishToMqtt(MQTT_TOPIC, temperature.toString())
+
+        return temperature
+    }
+
+
+    private fun setupMqttClient() {
+        try {
+            // Create a new MqttClient instance
+            mqttClient = MqttClient(
+                MQTT_SERVER_URI,
+                MQTT_CLIENT_ID,
+                MemoryPersistence()
+            )
+
+            // Set up connection options
+            val options = MqttConnectOptions()
+            // Optional username and password
+//            if (MQTT_USERNAME.isNotEmpty() && MQTT_PASSWORD.isNotEmpty()) {
+//                options.userName = MQTT_USERNAME
+//                options.password = MQTT_PASSWORD.toCharArray()
+//            }
+            options.isAutomaticReconnect = true
+            options.isCleanSession = true
+
+            // Connect to the broker
+            mqttClient?.connect(options)
+            updateStatus("Connected to MQTT broker")
+
+        } catch (e: MqttException) {
+            Log.e(TAG, "Error setting up MQTT client: ${e.message}")
+            updateStatus("MQTT connection failed: ${e.message}")
+        }
+    }
+
+
+    private fun publishToMqtt(topic: String, message: String) {
+        try {
+            if (mqttClient?.isConnected == true) {
+                val mqttMessage = MqttMessage(message.toByteArray())
+                mqttMessage.qos = 1
+                mqttClient?.publish(topic, mqttMessage)
+                Log.i(TAG, "Published to MQTT: $message")
+            } else {
+                Log.w(TAG, "MQTT client not connected, attempting to reconnect")
+                setupMqttClient()
+            }
+        } catch (e: MqttException) {
+            Log.e(TAG, "Error publishing to MQTT: ${e.message}")
+        }
     }
 
     // Update UI state helpers
