@@ -62,10 +62,27 @@ class MainActivity : ComponentActivity() {
 
     var target_device_name = "" // Initialize as empty
     // Example UUIDs - replace with your device's actual UUIDs
-    //private val SERVICE_UUID = UUID.fromString("0000180d-0000-1000-8000-00805f9b34fb") // Heart Rate Service
     private val SERVICE_UUID = UUID.fromString("00000000-0001-11e1-9ab4-0002a5d5c51b") // MSSensorDemo Service
 
-    private val CHARACTERISTIC_UUID = UUID.fromString("00140000-0001-11e1-ac36-0002a5d5c51b") //  MSSensorDemo Characteristic
+    private val BLUENRG_MS_ENV_CHARACTERISTIC_UUID = UUID.fromString("00140000-0001-11e1-ac36-0002a5d5c51b") //  MSSensorDemo Characteristic
+    private val BLUENRG_MS_ACC_CHARACTERISTIC_UUID = UUID.fromString("00c00000-0001-11e1-ac36-0002a5d5c51b")
+    private val CCCD_UUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
+    private val BLUENRG_MS_SERVICE_UUID = UUID.fromString("00000000-0001-11e1-9ab4-0002a5d5c51b") // MSSensorDemo Service
+    private val HEAR_RATE_SERVICE_UUID = UUID.fromString("0000180D-0000-1000-8000-00805F9B34FB") // Heart Rate Service
+    private val SERVICE_UUIDS = listOf(
+        HEAR_RATE_SERVICE_UUID,
+        BLUENRG_MS_SERVICE_UUID,  // MSSensorDemo Service
+    )
+
+    private val HEART_RATE_CHARACTERISTIC_UUID = UUID.fromString("00002A37-0000-1000-8000-00805F9B34FB")
+    private val BATTERY_CHARACTERISTIC_UUID = UUID.fromString("0000180F-0000-1000-8000-00805F9B34FB")
+
+    private val CHAR_UUIDS = listOf(
+        HEART_RATE_CHARACTERISTIC_UUID,
+        //BLUENRG_MS_ENV_CHARACTERISTIC_UUID,
+        BLUENRG_MS_ACC_CHARACTERISTIC_UUID,
+        BATTERY_CHARACTERISTIC_UUID,
+    )
 
 
     // MQTT Client properties
@@ -251,7 +268,7 @@ class MainActivity : ComponentActivity() {
             val device = result.device
             val deviceName = device.name ?: "Unknown Device"
 
-            Log.i(TAG, "Found device: $deviceName")
+            Log.i(TAG, "Found device: $deviceName ${device.address} ")
 
             // Connect to the first device found (for demonstration)
             // In a real app, you might want to show a list of devices
@@ -325,41 +342,45 @@ class MainActivity : ComponentActivity() {
             if (status == BluetoothGatt.GATT_SUCCESS) {
                 Log.i(TAG, "Services discovered")
 
-                // Find our service and characteristic
-                val service = gatt.getService(SERVICE_UUID)
-                if (service != null) {
-                    val characteristic = service.getCharacteristic(CHARACTERISTIC_UUID)
-                    if (characteristic != null) {
-                        // Check for permissions
-                        if (ActivityCompat.checkSelfPermission(
-                                this@MainActivity,
-                                Manifest.permission.BLUETOOTH_CONNECT
-                            ) != PackageManager.PERMISSION_GRANTED
-                        ) {
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                                return
+
+
+                for (service_uuid in SERVICE_UUIDS) {
+                    val service = gatt.getService(service_uuid)
+                    if (service != null) {
+                        for (char_uuid in CHAR_UUIDS) {
+                            val characteristic =
+                                service.getCharacteristic(char_uuid)
+                            if (characteristic != null) {
+                                // Check for permissions
+                                if (ActivityCompat.checkSelfPermission(
+                                        this@MainActivity,
+                                        Manifest.permission.BLUETOOTH_CONNECT
+                                    ) != PackageManager.PERMISSION_GRANTED
+                                ) {
+                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                                        return
+                                    }
+                                }
+
+                                // Enable notifications
+                                gatt.setCharacteristicNotification(characteristic, true)
+
+                                // For some characteristics, we need to enable the Client Characteristic Configuration Descriptor (CCCD)
+                                val descriptor = characteristic.getDescriptor(CCCD_UUID)
+                                if (descriptor != null) {
+                                    descriptor.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE)
+                                    gatt.writeDescriptor(descriptor)
+                                    updateStatus("Notifications enabled")
+                                }
+                            } else {
+                                Log.w(TAG, "Characteristic not found")
+                                updateStatus("Characteristic not found")
                             }
                         }
-
-                        // Enable notifications
-                        gatt.setCharacteristicNotification(characteristic, true)
-
-
-//                        // For some characteristics, we need to enable the Client Characteristic Configuration Descriptor (CCCD)
-                        val desc_uuid = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
-                        val descriptor = characteristic.getDescriptor(desc_uuid)
-                        if (descriptor != null) {
-                            descriptor.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE)
-                            gatt.writeDescriptor(descriptor)
-                            updateStatus("Notifications enabled")
-                        }
                     } else {
-                        Log.w(TAG, "Characteristic not found")
-                        updateStatus("Characteristic not found")
+                        Log.w(TAG, "Service not found ${service_uuid.toString()}")
+                        updateStatus("Service not found")
                     }
-                } else {
-                    Log.w(TAG, "Service not found")
-                    updateStatus("Service not found")
                 }
             } else {
                 Log.w(TAG, "onServicesDiscovered received: $status")
@@ -372,13 +393,22 @@ class MainActivity : ComponentActivity() {
             characteristic: BluetoothGattCharacteristic,
             value: ByteArray
         ) {
-            Log.w(TAG, "onServicesDiscovered received: ${characteristic.uuid.toString()} - $value")
+            Log.w(TAG, "onServicesDiscovered received: ${characteristic.uuid.toString()} - $value - ${gatt.device.name} ${gatt.device.address}")
             // This is called when notifications are received
-            if (characteristic.uuid == CHARACTERISTIC_UUID) {
+            if (characteristic.uuid == BLUENRG_MS_ENV_CHARACTERISTIC_UUID) {
 
                 // Parse the data based on your specific device's format
                 val data = parseTemperatureDeta(value) // Example parser
                 updateData("Temperature : $data C")
+            }
+            else if (characteristic.uuid == HEART_RATE_CHARACTERISTIC_UUID) {
+                // Parse the data based on your specific device's format
+
+                updateData("Heart Rate : ${value.toString()} bpm")
+            }
+            else if (characteristic.uuid == BLUENRG_MS_ACC_CHARACTERISTIC_UUID) {
+                parseMSAccDeta(value)
+                updateData("Acc measure : ${value.toString()}")
             }
         }
 
@@ -393,7 +423,7 @@ class MainActivity : ComponentActivity() {
             } else {
                 // For older Android versions
                 val value = characteristic.value
-                if (characteristic.uuid == CHARACTERISTIC_UUID) {
+                if (characteristic.uuid == BLUENRG_MS_ENV_CHARACTERISTIC_UUID) {
                     val data = parseTemperatureDeta(value)
                     updateData("Temperature: $data bpm")
                 }
@@ -415,6 +445,18 @@ class MainActivity : ComponentActivity() {
         return temperature
     }
 
+
+    private fun parseMSAccDeta(data: ByteArray): Int {
+
+        val accValue = data.sliceArray(6 until data.size).foldIndexed(0) { index, acc, byte ->
+            acc or ((byte.toInt() and 0xFF) shl (8 * index))
+        }
+
+        // Publish temperature to MQTT
+        publishToMqtt(MQTT_TOPIC, accValue.toString())
+
+        return accValue
+    }
 
     private fun setupMqttClient() {
         try {
